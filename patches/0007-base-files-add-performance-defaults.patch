@@ -1,0 +1,58 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: The future is private. <contact@thefutureisprivate.dev>
+Date: Tue, 12 May 2026 18:00:00 +0200
+Subject: [PATCH 7/10] base-files: add performance defaults
+
+Enable irqbalance and OpenSSL devcrypto by default, and include a disabled SQM
+Cake template that can be enabled once WAN bandwidth values are known.
+---
+ .../etc/uci-defaults/90-custom-performance-defaults | 38 +++++++++++++++++++++
+ 1 file changed, 38 insertions(+)
+ create mode 100755 package/base-files/files/etc/uci-defaults/90-custom-performance-defaults
+
+diff --git a/package/base-files/files/etc/uci-defaults/90-custom-performance-defaults b/package/base-files/files/etc/uci-defaults/90-custom-performance-defaults
+new file mode 100755
+index 0000000000..1111111111
+--- /dev/null
++++ b/package/base-files/files/etc/uci-defaults/90-custom-performance-defaults
+@@ -0,0 +1,38 @@
++#!/bin/sh
++
++if uci -q get irqbalance.irqbalance >/dev/null; then
++	uci -q set irqbalance.irqbalance.enabled='1'
++	uci -q commit irqbalance
++fi
++
++if [ -f /etc/ssl/openssl.cnf ]; then
++	awk '
++		BEGIN { in_engine = 0 }
++		/^\[.*\]/ { in_engine = ($0 == "[engine]") }
++		in_engine && /^[[:space:]]*#?[[:space:]]*devcrypto[[:space:]]*=[[:space:]]*devcrypto[[:space:]]*$/ {
++			print "devcrypto = devcrypto"
++			next
++		}
++		{ print }
++	' /etc/ssl/openssl.cnf > /tmp/openssl.cnf.custom
++	if cmp -s /etc/ssl/openssl.cnf /tmp/openssl.cnf.custom; then
++		rm -f /tmp/openssl.cnf.custom
++	else
++		mv /tmp/openssl.cnf.custom /etc/ssl/openssl.cnf
++	fi
++fi
++
++# SQM/Cake depends on the real WAN link rates. Enable this block after setting
++# download/upload to about 90-95% of measured line speed in kbit/s.
++if uci -q get sqm.wan >/dev/null; then
++	uci -q set sqm.wan.enabled='0'
++	uci -q set sqm.wan.interface='wan'
++	uci -q set sqm.wan.qdisc='cake'
++	uci -q set sqm.wan.script='piece_of_cake.qos'
++	uci -q set sqm.wan.linklayer='none'
++	uci -q set sqm.wan.download='0'
++	uci -q set sqm.wan.upload='0'
++	uci -q commit sqm
++fi
++
++exit 0
+-- 
+2.50.0

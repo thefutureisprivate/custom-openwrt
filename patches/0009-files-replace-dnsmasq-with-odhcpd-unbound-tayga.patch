@@ -1,0 +1,155 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: The future is private. <contact@thefutureisprivate.dev>
+Date: Thu, 14 May 2026 13:15:00 +0200
+Subject: [PATCH 9/10] files: use odhcpd, unbound, and tayga by default
+
+Replace dnsmasq with odhcpd for DHCPv4 and IPv6 RA/SLAAC, configure
+Unbound as the DNSSEC-validating DNS service with DNS64 enabled and
+Cloudflare DoT as the upstream, and add a Tayga NAT64 interface.
+
+---
+ files/etc/config/dhcp                         | 31 +++++++++
+ files/etc/config/unbound                      | 53 ++++++++++++++++
+ files/etc/uci-defaults/92-custom-dns-nat64    | 35 +++++++++++
+ 3 files changed, 119 insertions(+)
+ create mode 100644 files/etc/config/dhcp
+ create mode 100644 files/etc/config/unbound
+ create mode 100755 files/etc/uci-defaults/92-custom-dns-nat64
+
+diff --git a/files/etc/config/dhcp b/files/etc/config/dhcp
+new file mode 100644
+index 0000000000..fb4a5364ad
+--- /dev/null
++++ b/files/etc/config/dhcp
+@@ -0,0 +1,31 @@
++config dhcp 'lan'
++	option interface 'lan'
++	option start '100'
++	option limit '150'
++	option leasetime '12h'
++	option domain 'internal'
++	option dhcpv4 'server'
++	option ipv6_only_preferred '1800'
++	option dhcpv6 'disabled'
++	option ra 'server'
++	option ra_pref64 '64:ff9b::/96'
++	option ra_slaac '1'
++	option ra_dns '1'
++	option dns_service '1'
++	list ra_flags 'none'
++
++config dhcp 'wan'
++	option interface 'wan'
++	option ignore '1'
++
++config dhcp 'wan6'
++	option interface 'wan6'
++	option ignore '1'
++
++config odhcpd 'odhcpd'
++	option maindhcp '1'
++	option leasefile '/tmp/odhcpd.leases'
++	option leasetrigger '/usr/lib/unbound/odhcpd.sh'
++	option loglevel '4'
++	option piodir '/tmp/odhcpd-piodir'
++	option hostsdir '/tmp/hosts'
+diff --git a/files/etc/config/unbound b/files/etc/config/unbound
+new file mode 100644
+index 0000000000..8f7e5085d7
+--- /dev/null
++++ b/files/etc/config/unbound
+@@ -0,0 +1,53 @@
++config unbound 'ub_main'
++	option add_extra_dns '0'
++	option add_local_fqdn '1'
++	option add_wan_fqdn '0'
++	option dhcp_link 'odhcpd'
++	option dhcp4_slaac6 '1'
++	option exclude_ipv6_ga '0'
++	option dns64 '1'
++	option dns64_prefix '64:ff9b::/96'
++	option domain 'internal'
++	option domain_type 'static'
++	option edns_size '1232'
++	option extended_stats '0'
++	option hide_binddata '1'
++	option interface_auto '1'
++	option listen_port '53'
++	option localservice '1'
++	option manual_conf '0'
++	option num_threads '2'
++	option protocol 'mixed'
++	option query_minimize '1'
++	option query_min_strict '0'
++	option rate_limit '0'
++	option rebind_localhost '0'
++	option rebind_protection '1'
++	option recursion 'passive'
++	option resource 'small'
++	option root_age '9'
++	option ttl_min '120'
++	option ttl_neg_max '1000'
++	option unbound_control '1'
++	option validator '1'
++	option validator_ntp '1'
++	option verbosity '1'
++	list iface_lan 'lan'
++	list iface_trig 'lan'
++	list iface_trig 'wan'
++	list iface_trig 'wan6'
++	list iface_wan 'wan'
++	list iface_wan 'wan6'
++
++config zone 'fwd_cloudflare'
++	option enabled '1'
++	option fallback '0'
++	option tls_index 'cloudflare-dns.com'
++	option tls_port '853'
++	option tls_upstream '1'
++	option zone_type 'forward_zone'
++	list server '1.1.1.1'
++	list server '1.0.0.1'
++	list server '2606:4700:4700::1111'
++	list server '2606:4700:4700::1001'
++	list zone_name '.'
+diff --git a/files/etc/uci-defaults/92-custom-dns-nat64 b/files/etc/uci-defaults/92-custom-dns-nat64
+new file mode 100755
+index 0000000000..02a507070f
+--- /dev/null
++++ b/files/etc/uci-defaults/92-custom-dns-nat64
+@@ -0,0 +1,35 @@
++#!/bin/sh
++
++uci -q batch <<'EOF'
++set network.nat64=interface
++set network.nat64.proto='tayga'
++set network.nat64.ipv4_addr='192.168.255.1'
++set network.nat64.prefix='64:ff9b::/96'
++set network.nat64.dynamic_pool='192.168.255.0/24'
++commit network
++EOF
++
++lan_zone=
++for zone in $(uci -q show firewall | sed -n "s/^\(firewall\.[^=]*\)=zone$/\1/p"); do
++	[ "$(uci -q get "${zone}.name")" = "lan" ] || continue
++	lan_zone="$zone"
++	break
++done
++
++if [ -n "$lan_zone" ]; then
++	case " $(uci -q get "${lan_zone}.network") " in
++		*" nat64 "*)
++			;;
++		*)
++			uci -q add_list "${lan_zone}.network=nat64"
++			uci -q commit firewall
++			;;
++	esac
++fi
++
++/etc/init.d/dnsmasq disable 2>/dev/null || true
++/etc/init.d/dnsmasq stop 2>/dev/null || true
++/etc/init.d/odhcpd enable 2>/dev/null || true
++/etc/init.d/unbound enable 2>/dev/null || true
++
++exit 0

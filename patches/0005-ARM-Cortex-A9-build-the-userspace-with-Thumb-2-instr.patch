@@ -1,0 +1,30 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: The future is private. <contact@thefutureisprivate.dev>
+Date: Tue, 12 May 2026 18:20:00 +0200
+Subject: [PATCH 5/10] ARM Cortex-A7/A8/A9: build userspace with Thumb-2
+ instructions
+
+Thumb-2 code is denser than pure ARM, reducing RAM usage and improving
+performance due to better instruction cache footprint.
+
+Original-patch-by: Rui Salvaterra <rsalvaterra@gmail.com>
+Original-tested-by: Tavi <tavi@divested.dev>
+Signed-off-by: The future is private. <contact@thefutureisprivate.dev>
+---
+ include/target.mk | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/include/target.mk b/include/target.mk
+index 1e70b780e7..296074ad61 100644
+--- a/include/target.mk
++++ b/include/target.mk
+@@ -240,6 +240,9 @@ ifeq ($(DUMP),1)
+   endif
+   ifneq ($(findstring arm,$(ARCH)),)
+     CPU_TYPE ?= xscale
++    CPU_CFLAGS_cortex-a7 = -mthumb
++    CPU_CFLAGS_cortex-a8 = -mthumb
++    CPU_CFLAGS_cortex-a9 = -mthumb
+   endif
+   ifeq ($(ARCH),powerpc)
+     CPU_CFLAGS_603e:=-mcpu=603e

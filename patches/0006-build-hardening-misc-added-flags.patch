@@ -1,0 +1,20 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Tavi <tavi@divested.dev>
+Date: Fri, 2 Jul 2021 13:03:00 -0400
+Subject: [PATCH 6/10] build: hardening: misc added flags
+
+Signed-off-by: Tavi <tavi@divested.dev>
+---
+ include/hardening.mk | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/include/hardening.mk b/include/hardening.mk
+index c5d836eec0..ba8b5aa2bf 100644
+--- a/include/hardening.mk
++++ b/include/hardening.mk
+@@ -83,3 +83,5 @@ ifdef CONFIG_PKG_FANALYZER
+     TARGET_CFLAGS +=  -fanalyzer
+   endif
+ endif
++
++TARGET_CFLAGS += -fstack-clash-protection -fwrapv
