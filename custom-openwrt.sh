@@ -88,7 +88,7 @@ ARG CONTAINER_BASE
 FROM ${CONTAINER_BASE}
 RUN dnf --setopt=install_weak_deps=False install --skip-broken -y \
 	bash bc binutils bison bzip2 ccache diffutils elfutils-libelf-devel \
-	file findutils flex gawk gcc gcc-c++ gettext git-core grep gzip \
+	file findutils flex gawk gcc gcc-c++ gettext git-core glibc-gconv-extra grep gzip \
 	intltool libusb1-devel libxslt make ncurses-devel openssl-devel patch \
 	perl-base perl-Data-Dumper perl-ExtUtils-MakeMaker perl-File-Compare \
 	perl-File-Copy perl-FindBin perl-IPC-Cmd perl-JSON-PP perl-lib \
