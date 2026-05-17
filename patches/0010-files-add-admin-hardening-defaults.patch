@@ -8,8 +8,8 @@ HTTPS redirection enabled, and block LAN clients from bypassing the router's
 DNS policy on plain DNS and DoT ports.
 
 ---
- files/etc/uci-defaults/93-custom-admin-hardening | 39 ++++++++++++++++++++++++
- 1 file changed, 39 insertions(+)
+ files/etc/uci-defaults/93-custom-admin-hardening | 46 ++++++++++++++++++++++++
+ 1 file changed, 46 insertions(+)
  create mode 100755 files/etc/uci-defaults/93-custom-admin-hardening
 
 diff --git a/files/etc/uci-defaults/93-custom-admin-hardening b/files/etc/uci-defaults/93-custom-admin-hardening
@@ -17,12 +17,13 @@ new file mode 100755
 index 0000000000..16dc6ae99b
 --- /dev/null
 +++ b/files/etc/uci-defaults/93-custom-admin-hardening
-@@ -0,0 +1,39 @@
+@@ -0,0 +1,46 @@
 +#!/bin/sh
 +
 +if uci -q get dropbear.@dropbear[0] >/dev/null; then
 +	uci -q batch <<'EOF'
-+set dropbear.@dropbear[0].DirectInterface='lan'
++delete dropbear.@dropbear[0].DirectInterface
++set dropbear.@dropbear[0].Interface='lan'
 +set dropbear.@dropbear[0].GatewayPorts='0'
 +set dropbear.@dropbear[0].PasswordAuth='on'
 +set dropbear.@dropbear[0].RootPasswordAuth='on'
@@ -31,17 +32,24 @@ index 0000000000..16dc6ae99b
 +fi
 +
 +if uci -q get uhttpd.main >/dev/null; then
-+	lan_ip="$(uci -q get network.lan.ipaddr)"
-+	[ -n "$lan_ip" ] || lan_ip='192.168.1.1'
 +	uci -q delete uhttpd.main.listen_http
 +	uci -q delete uhttpd.main.listen_https
-+	uci -q add_list uhttpd.main.listen_http="${lan_ip}:80"
-+	uci -q add_list uhttpd.main.listen_https="${lan_ip}:443"
++	uci -q add_list uhttpd.main.listen_http='0.0.0.0:80'
++	uci -q add_list uhttpd.main.listen_http='[::]:80'
++	uci -q add_list uhttpd.main.listen_https='0.0.0.0:443'
++	uci -q add_list uhttpd.main.listen_https='[::]:443'
 +	uci -q set uhttpd.main.redirect_https='1'
 +	uci -q commit uhttpd
 +fi
 +
 +uci -q batch <<'EOF'
++set firewall.block_wan_admin=rule
++set firewall.block_wan_admin.name='Block-WAN-Admin'
++set firewall.block_wan_admin.src='wan'
++set firewall.block_wan_admin.proto='tcp'
++set firewall.block_wan_admin.dest_port='22 80 443'
++set firewall.block_wan_admin.target='REJECT'
++set firewall.block_wan_admin.enabled='1'
 +set firewall.block_lan_dns_bypass=rule
 +set firewall.block_lan_dns_bypass.name='Block-LAN-DNS-Bypass'
 +set firewall.block_lan_dns_bypass.src='lan'
